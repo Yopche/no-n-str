@@ -1,27 +1,5 @@
-import { useLocation } from "react-router-dom";
-import { useEffect } from "react";
-
-const NotFound = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    console.error(
-      "404 Error: User attempted to access non-existent route:",
-      location.pathname,
-    );
-  }, [location.pathname]);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">404</h1>
-        <p className="text-xl text-gray-600 mb-4">Oops! Page not found</p>
-        <a href="/" className="text-blue-500 hover:text-blue-700 underline">
-          Return to Home
-        </a>
-      </div>
-    </div>
-  );
-};
-
-export default NotFound;
+import { Link } from 'react-router-dom';
+import { Radar } from 'lucide-react';
+export default function NotFound() {
+  return <main className="flex min-h-dvh items-center justify-center p-5"><div className="panel max-w-sm p-9 text-center"><Radar size={45} className="mx-auto mb-6 text-primary" /><p className="mb-3 font-mono text-sm text-muted-foreground">404</p><h1 className="text-2xl font-semibold">Mimo dosah radaru</h1><p className="mb-7 mt-3 text-sm text-muted-foreground">Tato stránka neexistuje. Vraťte se do bezpečí hlavního přehledu.</p><Link className="primary-button" to="/">Zpět na radar</Link></div></main>;
+}

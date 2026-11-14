@@ -1,0 +1,82 @@
+NOČNÍ STRÁŽ — PŘIPOJENÍ ESP32
+
+Aplikace je připravená pro živé připojení. Firmware ESP32 není součástí webové aplikace. Zapojení přijímače světelné závory a bezpečnostní vypínání laseru musí zajistit hardware a firmware.
+
+1. ÚČET A DOMÁCNOST
+V nastavení webové aplikace se přihlaste, vytvořte domácnost a poznamenejte si její UUID (je uvedené v okně Senzory a architektura). Další členové se připojí kódem pozvánky.
+Pro ESP32 použijte samostatný účet Supabase Auth. Připojte jej k domácnosti stejnou pozvánkou. Jeho access_token slouží jako JWT zařízení. Service role ani databázové heslo nikdy nedávejte do ESP32 nebo do prohlížeče.
+Přihlášení zařízení: POST https://frdobdhcioftjdaxfpgf.supabase.co/auth/v1/token?grant_type=password
+Hlavičky: apikey: <veřejný klíč>, Content-Type: application/json
+Tělo: {"email":"<e-mail účtu zařízení>","password":"<heslo účtu zařízení>"}
+Zařízení musí bezpečně ukládat a obnovovat refresh_token před vypršením relace.
+Přijetí pozvánky: POST https://frdobdhcioftjdaxfpgf.supabase.co/rest/v1/rpc/radar_join_household
+Hlavičky: apikey: <veřejný klíč>, Authorization: Bearer <access_token>, Content-Type: application/json
+Tělo: {"code":"<kód pozvánky>"}
+
+2. TELEMETRIE BEZ ZÁPISŮ KAŽDÉHO VZORKU
+Ověřený vstup: POST https://frdobdhcioftjdaxfpgf.supabase.co/functions/v1/radar-ingest
+Hlavičky: apikey: <veřejný klíč>, Authorization: Bearer <access_token>, Content-Type: application/json
+Tělo:
+{
+  "household_id": "<UUID domácnosti>",
+  "telemetry": {
+    "angle": 64,
+    "distance": 182,
+    "radar_distance": 214,
+    "motion_energy": 76,
+    "static_energy": 24,
+    "light": 72,
+    "laser": false,
+    "presence": "motion",
+    "paused": false,
+    "hide_static": false,
+    "laser_mode": "off",
+    "barrier_broken": false,
+    "calibration": "idle",
+    "latency_ms": 16
+  }
+}
+
+angle: 0–180 stupňů, vzdálenosti: 0–600 cm, energie a světlo: 0–100 %.
+presence: quiet / motion / person.
+laser_mode: off / manual / auto / barrier.
+calibration: idle / running / done. Po dokončení kalibrace odešlete done. Telemetrie může obsahovat volitelné room_map: [{"angle":0,"distance":320},{"angle":90,"distance":380},{"angle":180,"distance":310}] — nejvýše 181 skutečných bodů kalibračního podkladu. Mapu pošlete po kalibraci a občas zopakujte pro nové klienty. Při clear_map pošlete room_map: [] a calibration: "idle". Pokud room_map chybí, web sestaví podklad ze vzorků během running. V živém režimu se nikdy nepoužívá simulovaná mapa.
+latency_ms je volitelné a musí být změřené zařízením, nikoli vymyšlené.
+Funkce vysílá na PRIVÁTNÍ Broadcast kanál radar_live:<UUID domácnosti>, událost telemetry. Do databáze telemetrii neukládá.
+Začněte na 3–5 vzorcích za sekundu; web lokálně vyhlazuje pohyb. Vyšší frekvence přes HTTP Edge Function zvyšuje náklady a latenci. Pro rychlé přímé připojení WebSocket použijte důvěryhodnou serverovou bránu se stejným privátním kanálem, nikdy veřejný Broadcast s citlivými daty.
+I při pauze skenování posílejte telemetrický heartbeat nejméně každé 2 sekundy. Po 5 sekundách bez aktuálních dat web zablokuje ovládání.
+
+3. DETEKČNÍ UDÁLOSTI
+Do stejného požadavku lze přidat event (neposílejte jej v každém snímku):
+"event": { "kind":"barrier", "angle":64, "distance":182, "laser_triggered":true, "motion_energy":76, "static_energy":24 }
+kind: motion / presence / barrier / calibration.
+Čas události přidává server. Detekce deduplikujte ve firmwaru: ukládejte změnu stavu, ne každý vzorek. Historie se načítá z radar_events.
+
+4. PŘÍKAZY A POTVRZENÍ
+Čtěte pending příkazy domácnosti přes Realtime Postgres Changes nebo periodicky přes REST:
+GET https://frdobdhcioftjdaxfpgf.supabase.co/rest/v1/radar_commands?household_id=eq.<UUID>&status=eq.pending&order=created_at.asc
+Hlavičky: apikey: <veřejný klíč>, Authorization: Bearer <access_token>
+Každý příkaz proveďte nanejvýš jednou a odmítněte všechny s expires_at v minulosti. Udržujte správný čas zařízení.
+command a payload:
+pause: {} — pozastavit servo a bezpečně vypnout laser.
+resume: {} — obnovit skenování.
+calibrate: {} — vypnout laser, spustit dva průchody 0–180°, vytvořit podklad a poslat calibration=done.
+clear_map: {} — odstranit podklad prostředí.
+hide_static: {"enabled":true} — změnit filtrování.
+laser_mode: {"mode":"off"} — ihned vypnout.
+laser_mode: {"mode":"manual","timeout_ms":5000} — test nejvýše 5 sekund.
+laser_mode: {"mode":"auto","timeout_ms":30000} — časově omezená automatika.
+laser_mode: {"mode":"barrier","timeout_ms":30000} — pevná světelná závora, nikoli otáčený paprsek.
+Po provedení přidejte do požadavku radar-ingest:
+"ack": {"id":"<UUID příkazu>","status":"acknowledged"}
+Při odmítnutí použijte status failed. Stav telemetrie musí odrážet skutečný hardware. Potvrzení odesílejte před expirací, jinak funkce vrátí 409. Web příkaz neoznačí za hotový bez potvrzení zařízení.
+
+5. BEZPEČNOST LASERU
+KY-008 sám přerušení nezjistí. Závora potřebuje pevně umístěný a bezpečně nasměrovaný laser a odstíněný protilehlý přijímač. Pohybující se servo není pevná závora.
+Ve firmwaru vynucujte: výchozí laser OFF, limit testu 5 s, limit ostatních aktivací 30 s, vypnutí při výpadku sítě, vypršení příkazu, kalibraci a pauze. Použijte fyzickou možnost odpojení laseru. Web nemůže garantovat bezpečnost hardwaru.
+Nemiřte na oči, lidi, zvířata, zrcadla ani lesklé odrazivé plochy.
+
+6. SUPABASE A PWA
+SQL je dostupné v souboru nocni-straz.sql. Pro aktuálně propojený projekt už byly tabulky a RLS vytvořeny. Při změně projektu musíte vytvořit také funkci radar-ingest v novém projektu; samotná změna URL nepřenese serverové funkce.
+V Supabase Authentication > URL Configuration povolte absolutní callback adresy vaší nasazené aplikace: /auth/callback a /reset-password. Nepoužívejte pevný localhost ve směrování e-mailů.
+Instalace PWA je dostupná v podporovaných prohlížečích na HTTPS v produkci. V Safari použijte Sdílet > Přidat na plochu. Offline se zobrazuje pouze upozornění; žádná telemetrie ani historie se neukládá.
