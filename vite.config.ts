@@ -13,10 +13,10 @@ export default defineConfig(() => ({
     registerType: 'autoUpdate',
     includeAssets: ['icon.svg'],
     manifest: {
-      name: 'Noční Stráž', short_name: 'Noční Stráž',
-      description: 'Váš domácí radar. Váš prostor pod kontrolou.',
+      name: 'Sklad součástek', short_name: 'Součástky',
+      description: 'Tvůj osobní sklad elektroniky, projekty a nápady do dílny.',
       lang: 'cs', start_url: '/', scope: '/', display: 'standalone',
-      theme_color: '#090D16', background_color: '#090D16',
+      theme_color: '#181c19', background_color: '#181c19',
       icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }, { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' }]
     },
     workbox: { globPatterns: ['**/*.{js,css,html,svg,woff2}'], navigateFallbackDenylist: [/^\/auth\//, /^\/reset-password/], runtimeCaching: [] }
