@@ -16,12 +16,13 @@ export default defineConfig(() => ({
       name: 'Sklad součástek', short_name: 'Součástky',
       description: 'Tvůj osobní sklad elektroniky, projekty a nápady do dílny.',
       lang: 'cs', start_url: '/', scope: '/', display: 'standalone',
-      theme_color: '#181c19', background_color: '#181c19',
+      theme_color: '#0B0D10', background_color: '#0B0D10',
       icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }, { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' }]
     },
     workbox: { globPatterns: ['**/*.{js,css,html,svg,woff2}'], navigateFallbackDenylist: [/^\/auth\//, /^\/reset-password/], runtimeCaching: [] }
   })],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },

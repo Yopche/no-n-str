@@ -1,2 +1,2 @@
-import { StockList } from '@/components/StockList';
-export default function Index(){return <StockList/>;}
+import { InventoryDashboard } from '@/components/InventoryDashboard';
+export default function Index(){return <InventoryDashboard/>;}
